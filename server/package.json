@@ -1,0 +1,19 @@
+{
+  "name": "server",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx server.ts"
+  },
+  "dependencies": {
+    "fastify": "^5.5.0",
+    "ky": "^1.8.2",
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.2.1",
+    "@types/pg": "^8.15.5",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.20.4",
+    "typescript": "^5.9.2"
+  }
+}
