@@ -48,7 +48,7 @@ export default function App() {
     <div>
       <div className="topbar">
         <div className="brand">
-          <span className="title">RFP TERMINAL</span>
+          <span className="title">GIA RFP TERMINAL</span>
           <span className="subtitle">MVP</span>
         </div>
         <div className="status"><span className="dot" style={{background: '#00e676'}} />Connected</div>
