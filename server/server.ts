@@ -135,7 +135,7 @@ async function start() {
           AND ($2::text IS NULL OR u.product = $2)
           AND ($3::text IS NULL OR u.jurisdiction = $3)
         ORDER BY e.embedding <=> $1::vector
-        LIMIT 6
+        LIMIT 20
         `,
         [qvecLit, filters?.product ?? null, filters?.jurisdiction ?? null]
       );
@@ -149,8 +149,26 @@ async function start() {
           citations: [],
         });
       }
+      const answerFirst = rows.filter(r=> r.chunk_id !== 0);
 
-      const topRows = rows.slice(0, 4);
+      let topRows = rows.slice(0, 4);
+
+      if (topRows.length < 4) {
+        const chosenKeys = new Set(topRows.map(r => `${r.qa_id}:${r.chunk_id}`));
+        for (const r of rows) {
+          if (r.chunk_id === 0) continue; // still skip question chunks
+          const key = `${r.qa_id}:${r.chunk_id}`;
+          if (!chosenKeys.has(key)) {
+            topRows.push(r);
+            chosenKeys.add(key);
+            if (topRows.length === 4) break;
+          }
+        }
+      }
+
+      if (topRows.length === 0) {
+        topRows = rows.slice(0, 4);
+      }
 
       // (Optional) facts injection demo
       const facts = await pg.query(
