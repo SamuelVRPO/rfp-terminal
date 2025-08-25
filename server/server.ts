@@ -2,6 +2,7 @@
 import Fastify from "fastify";
 import { Client } from "pg";
 import ky from "ky";
+import { pipeline, env as hfenv } from "@huggingface/transformers";
 
 // ====== Config ======
 const OLLAMA = ky.create({ 
@@ -9,6 +10,9 @@ const OLLAMA = ky.create({
     timeout: 120_000 // 120s for local generation
  });
 const DB_URL = process.env.DATABASE_URL || "postgres://postgres:postgres@localhost:5432/rfp";
+
+// Toggle reranker on/off with env
+const USE_RERANK = (process.env.USE_RERANK ?? "1") === "1";
 
 // ====== Helpers ======
 async function embed(texts: string[]): Promise<number[][]> {
@@ -46,6 +50,48 @@ function logAndReplyErr(reply: any, err: any) {
     stack: err?.stack,
   });
   reply.code(500).send({ error: err?.message, code: err?.code, detail: err?.detail });
+}
+
+hfenv.useBrowserCache = false;
+let rerankPipe: any | null = null;
+
+async function getRerankPipeline() {
+  if (!rerankPipe) {
+    rerankPipe = await pipeline("text-classification", "cross-encoder/ms-marco-MiniLM-L-6-v2");
+  }
+  return rerankPipe;
+}
+
+/**
+ * Rerank candidate passage for a query
+ * @returns indices of `passages` sorted by descending relevance score
+ */
+async function rerank(query: string, passages: string[]): Promise<number[]> {
+  const pipe = await getRerankPipeline();
+
+  const inputs = passages.map((p) => ({ text: query, text_pair: p }));
+
+  const raw = await pipe(inputs, { topk: 1 });
+  
+  console.log("reranker sample output shape:", JSON.stringify(raw[0] ?? raw));
+
+  const arr = Array.isArray(raw) ? raw : [raw];
+
+  const norm = arr.map((res: any) => {
+    // Possibilities:
+    // 1) res is an array => take first element
+    // 2) res is an object => use it
+    const first = Array.isArray(res) ? res[0] : res;
+    const score = typeof first?.score === "number" ? first.score : 0;
+    return { score };
+  });
+
+  // If lengths mismatch (shouldn't happen), truncate to passages length
+  const N = Math.min(norm.length, passages.length);
+
+  const scored = Array.from({ length: N }, (_, i) => ({ i, score: norm[i].score }));
+  scored.sort((a: any, b: any) => b.score - a.score);
+  return scored.map((s) => s.i);
 }
 
 // ====== Server startup ======
@@ -117,7 +163,7 @@ async function start() {
     }
   });
 
-  // ---- Route: Suggest answer (Step B: cosine-only retrieval) ----
+  // ---- Route: Suggest answer (vector call -> rerank -> generate) ----
   app.post("/rfp/answer:suggest", async (req, reply) => {
     try {
       const { question, filters } = (req.body as any) ?? {};
@@ -149,28 +195,22 @@ async function start() {
           citations: [],
         });
       }
-      const answerFirst = rows.filter(r=> r.chunk_id !== 0);
 
-      let topRows = rows.slice(0, 4);
+      const answerCandidates = rows.filter((r) => r.chunk_id !== 0);
+      const pool = answerCandidates.length ? answerCandidates : rows;
 
-      if (topRows.length < 4) {
-        const chosenKeys = new Set(topRows.map(r => `${r.qa_id}:${r.chunk_id}`));
-        for (const r of rows) {
-          if (r.chunk_id === 0) continue; // still skip question chunks
-          const key = `${r.qa_id}:${r.chunk_id}`;
-          if (!chosenKeys.has(key)) {
-            topRows.push(r);
-            chosenKeys.add(key);
-            if (topRows.length === 4) break;
-          }
-        }
+      let topRows: typeof pool = [];
+      if (USE_RERANK) {
+        const order = await rerank(question, pool.map((r) => r.text));
+        topRows = order.slice(0, 4).map((i) => pool[i]);
+      } else {
+        topRows = pool.slice(0, 4);
       }
 
       if (topRows.length === 0) {
         topRows = rows.slice(0, 4);
       }
 
-      // (Optional) facts injection demo
       const facts = await pg.query(
         `SELECT key, value, as_of FROM firm_facts WHERE key IN ('AUM_USD_BILLIONS','TEAM_COUNT','INCEPTION_DATE')`
       );

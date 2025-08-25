@@ -1,0 +1,8 @@
+{
+  "scripts": {
+    "dev": "cross-env USE_RERANK=${USE_RERANK:-1} ts-node server/server.ts"
+  },
+  "devDependencies": {
+    "cross-env": "^10.0.0"
+  }
+}

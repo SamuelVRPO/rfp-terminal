@@ -1,3 +1,4 @@
 /server/node_modules
 /server/*.csv
 server/qas_ingest.csv
+node_modules
