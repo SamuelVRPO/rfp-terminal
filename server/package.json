@@ -2,13 +2,13 @@
   "name": "server",
   "type": "module",
   "scripts": {
-    "dev": "tsx server.ts"
+    "dev": "tsx server.ts",
+    "ingest:doc": "node ingest_doc.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.7.2",
     "fastify": "^5.5.0",
     "ky": "^1.8.2",
-    "mammoth": "^1.10.0",
     "pg": "^8.16.3",
     "uuid": "^11.1.0"
   },
