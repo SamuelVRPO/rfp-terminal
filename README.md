@@ -24,21 +24,6 @@ Architecture
 - Data: Postgres with `pgvector` for embeddings. Firm facts are read from `firm_facts` and injected at generation time.
 - Models: Ollama provides `nomic-embed-text` for embeddings and `llama3.1:8b-instruct-q4_K_M` for drafting. Optional rerank via `@huggingface/transformers` using `cross-encoder/ms-marco-MiniLM-L-6-v2` (can be toggled off).
 
-Quick Start
-- Prereqs: Node 18+, Docker, Ollama (`ollama serve`) running locally.
-- Pull models (first run):
-  - `ollama pull nomic-embed-text`
-  - `ollama pull llama3.1:8b-instruct-q4_K_M`
-- Database:
-  - Start Postgres (pgvector): `docker compose up -d db`
-  - Create extension and tables (see `schema.sql` for reference; ensure `vector` extension and tables `qa_units`, `qa_embeddings`, `firm_facts` exist).
-  - Important: Set `qa_embeddings.embedding` vector dimension to the embedding model’s size (e.g., 768 for `nomic-embed-text`).
-- Backend:
-  - `cd server && npm install && npm run dev` (Fastify on `:8080`)
-  - Env: `DATABASE_URL` (defaults to `postgres://postgres:postgres@localhost:5432/rfp`), `USE_RERANK=1|0`.
-- Frontend:
-  - `cd rfp-ui && npm install && npm run dev` (Vite on `:5173`, proxies `/api` to `:8080`)
-
 Ingest Data
 - UI:
   - In top command bar, type `ingest`.
@@ -61,11 +46,6 @@ API Surface
   - Body: `{ question: string, filters? }`
   - Returns: `{ hits: [{ qa_id, chunk_id, snippet, cosine_sim }] }`
 
-Configuration Notes
-- Embedding dims: Ensure the `VECTOR(n)` matches your embedding model. Example: `n = 768` for `nomic-embed-text`.
-- Reranker: First run downloads the cross‑encoder via `@huggingface/transformers`. Set `USE_RERANK=0` for offline demos.
-- UI proxy: `rfp-ui/vite.config.ts` proxies `/api` to `http://localhost:8080`.
-
 Key Files
 - `server/server.ts`: API routes, embedding/generation helpers, optional reranker.
 - `server/ingest_doc.mjs`: Parse `.txt` into Q&As and ingest (CLI).
@@ -80,13 +60,3 @@ Roadmap
 - Human‑in‑the‑loop editing workflow and approvals.
 - Richer filters (tags), draft history, and audit trails.
 - Document storage (MinIO/S3) and PDF extraction pipeline.
-
-Troubleshooting
-- Missing `vector` extension: `CREATE EXTENSION IF NOT EXISTS vector;`
-- Dimension mismatch: Recreate `qa_embeddings` with correct `VECTOR(n)` for your embeddings.
-- No results: Ensure `qa_units.is_active = true` and embeddings exist.
-- Slow/first run: Vectors/models download once; disable reranker if offline.
-
-Notes
-- This MVP demonstrates a pragmatic RAG pipeline with a transparent UI and local‑first defaults. Adapt the schema, filters, and prompts to your domain.
-
