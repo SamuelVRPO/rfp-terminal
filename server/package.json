@@ -6,6 +6,7 @@
     "ingest:doc": "node ingest_doc.mjs"
   },
   "dependencies": {
+    "@fastify/cors": "^10.0.1",
     "@huggingface/transformers": "^3.7.2",
     "fastify": "^5.5.0",
     "ky": "^1.8.2",
